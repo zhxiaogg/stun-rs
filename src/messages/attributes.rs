@@ -9,6 +9,7 @@
   comprehension-optional attributes, which means that those attributes
   can be ignored by the STUN agent if it does not understand them.
 */
+#[derive(Eq, PartialEq, Debug)]
 pub enum Attribute {
     MappedAddress(Address),
     // same as MappedAddress, but bits are xored with the magic cookie
@@ -30,11 +31,11 @@ pub enum Attribute {
     UnRecognized { kind: u16 },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Address {
-    address: String,
-    port: u16,
-    ip_kind: IPKind,
+    pub address: Vec<u8>,
+    pub port: u16,
+    pub ip_kind: IPKind,
 }
 
 #[derive(Debug, Eq, PartialEq)]

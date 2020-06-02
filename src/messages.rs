@@ -9,7 +9,7 @@ mod transaction_id;
 pub use transaction_id::TransactionID;
 
 mod attributes;
-pub use attributes::{Address, Attribute, IPKind};
+pub use attributes::*;
 
 pub struct Message {
     // 2 bit
