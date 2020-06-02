@@ -102,7 +102,7 @@ pub fn decode_attribute(buf: &mut dyn Buf, transaction_id: &[u8; 12]) -> Attribu
     }
 }
 
-fn decode_mapped_address(buf: &mut dyn Buf, size: usize) -> Attribute {
+fn decode_mapped_address(buf: &mut dyn Buf, _size: usize) -> Attribute {
     if buf.get_u8() != 0x00 {
         panic!("Invalid MappedAddress Codec!");
     }
@@ -135,10 +135,10 @@ fn decode_mapped_address(buf: &mut dyn Buf, size: usize) -> Attribute {
 fn encode_mapped_address(v: &Attribute, buf: &mut dyn BufMut) -> usize {
     match v {
         Attribute::MappedAddress(Address {
-            address,
-            port,
-            ip_kind,
-        }) if ip_kind == &IPKind::IPv4 => {
+                                     address,
+                                     port,
+                                     ip_kind,
+                                 }) if ip_kind == &IPKind::IPv4 => {
             buf.put_u8(0);
             buf.put_u8(0x01);
             buf.put_u16(*port);
@@ -148,10 +148,10 @@ fn encode_mapped_address(v: &Attribute, buf: &mut dyn BufMut) -> usize {
             8
         }
         Attribute::MappedAddress(Address {
-            address,
-            port,
-            ip_kind,
-        }) if ip_kind == &IPKind::IPv6 => {
+                                     address,
+                                     port,
+                                     ip_kind,
+                                 }) if ip_kind == &IPKind::IPv6 => {
             buf.put_u8(0);
             buf.put_u8(0x02);
             buf.put_u16(*port);
@@ -166,7 +166,7 @@ fn encode_mapped_address(v: &Attribute, buf: &mut dyn BufMut) -> usize {
 
 fn decode_xor_mapped_address(
     buf: &mut dyn Buf,
-    size: usize,
+    _size: usize,
     transaction_id: &[u8; 12],
 ) -> Attribute {
     if buf.get_u8() != 0x00 {
@@ -212,10 +212,10 @@ fn encode_xor_mapped_address(
 ) -> usize {
     match attribute {
         Attribute::XorMappedAddress(Address {
-            address,
-            port,
-            ip_kind,
-        }) if ip_kind == &IPKind::IPv4 => {
+                                        address,
+                                        port,
+                                        ip_kind,
+                                    }) if ip_kind == &IPKind::IPv4 => {
             buf.put_u8(0);
             buf.put_u8(0x01);
             buf.put_u16((*port) ^ ((MAGIC_COOKIE >> 16) as u16));
@@ -225,10 +225,10 @@ fn encode_xor_mapped_address(
             8
         }
         Attribute::XorMappedAddress(Address {
-            address,
-            port,
-            ip_kind,
-        }) if ip_kind == &IPKind::IPv6 => {
+                                        address,
+                                        port,
+                                        ip_kind,
+                                    }) if ip_kind == &IPKind::IPv6 => {
             buf.put_u8(0);
             buf.put_u8(0x02);
             buf.put_u16((*port) ^ ((MAGIC_COOKIE >> 16) as u16));
@@ -245,12 +245,11 @@ fn encode_xor_mapped_address(
 }
 
 mod test {
-    use bytes::{BufMut, BytesMut};
+    use bytes::BytesMut;
 
     #[test]
     pub fn test_encode_decode_ipv4_mapped_address() {
         use super::*;
-        use crate::messages::*;
         let address = Address {
             address: vec![0x01, 0x02, 0x03, 0x04],
             port: 0x0101,
@@ -268,7 +267,6 @@ mod test {
     #[test]
     pub fn test_encode_decode_ipv6_mapped_address() {
         use super::*;
-        use crate::messages::*;
         let ipv6_address = vec![
             0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
             0x07, 0x08,
