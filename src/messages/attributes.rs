@@ -19,10 +19,7 @@ pub enum Attribute {
     MessageIntegrity([u8; 20]),
     // crc-32 of the message
     FingerPrint(u32),
-    ErrorCode {
-        code: u32,
-        reason: String,
-    },
+    ErrorCode { code: u32, reason: String },
     Realm(String),
     Nonce(String),
     // a list of unknown attribute kinds
@@ -30,11 +27,7 @@ pub enum Attribute {
     Software(String),
     AlternateServer(Address),
     // unrecognized attributes
-    UnRecognized {
-        kind: u16,
-        length: u16,
-        value: Vec<u8>,
-    },
+    UnRecognized { kind: u16 },
 }
 
 #[derive(Debug)]
