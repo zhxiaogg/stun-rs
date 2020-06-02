@@ -1,8 +1,9 @@
 use bytes::{Buf, BufMut};
 
+use crate::codec::MAGIC_COOKIE;
 use crate::messages::{Address, Attribute, IPKind};
 
-pub fn decode_attribute(buf: &mut dyn Buf) -> Attribute {
+pub fn decode_attribute(buf: &mut dyn Buf, transaction_id: &[u8; 12]) -> Attribute {
     let attribute_type = buf.get_u16();
     let attribute_value_size = buf.get_u16() as usize;
 
@@ -14,10 +15,7 @@ pub fn decode_attribute(buf: &mut dyn Buf) -> Attribute {
             Attribute::UnRecognized { kind: 0x0000 }
         }
         // MAPPED-ADDRESS
-        0x0001 => {
-            buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
-        }
+        0x0001 => decode_mapped_address(buf, attribute_value_size),
         // (Reserved; was RESPONSE-ADDRESS)
         0x0002 => {
             buf.advance(attribute_value_size);
@@ -79,7 +77,7 @@ pub fn decode_attribute(buf: &mut dyn Buf) -> Attribute {
             Attribute::UnRecognized { kind: 0x0000 }
         }
         // XOR-MAPPED-ADDRESS
-        0x0020 => Attribute::UnRecognized { kind: 0x0000 },
+        0x0020 => decode_xor_mapped_address(buf, attribute_value_size, transaction_id),
 
         // Comprehension-optional range (0x8000-0xFFFF)
         0x8022 => {
@@ -166,14 +164,85 @@ fn encode_mapped_address(v: &Attribute, buf: &mut dyn BufMut) -> usize {
     }
 }
 
-// fn decode_xor_mapped_address(buf: &mut dyn Buf, size: usize) -> Attribute {}
-//
-// fn encode_xor_mapped_address(v: Attribute, buf: &mut dyn BufMut) -> usize {
-//     match v {
-//         Attribute::XorMappedAddress(address) => {}
-//         _ => panic!("".to_owned())
-//     }
-// }
+fn decode_xor_mapped_address(
+    buf: &mut dyn Buf,
+    size: usize,
+    transaction_id: &[u8; 12],
+) -> Attribute {
+    if buf.get_u8() != 0x00 {
+        panic!("Invalid MappedAddress Codec!");
+    }
+    // TODO: validate size
+    match buf.get_u8() {
+        0x01 => {
+            let port = buf.get_u16() ^ ((MAGIC_COOKIE >> 16) as u16);
+            let mut address = vec![0; 4];
+            for i in 0..4 {
+                address[i] = buf.get_u8() ^ ((MAGIC_COOKIE >> ((4 - i as u32 - 1) * 8)) as u8);
+            }
+            Attribute::XorMappedAddress(Address {
+                address,
+                port,
+                ip_kind: IPKind::IPv4,
+            })
+        }
+        0x02 => {
+            let port = buf.get_u16() ^ ((MAGIC_COOKIE >> 16) as u16);
+            let mut address = vec![0; 16];
+            for i in 0..4 {
+                address[i] = buf.get_u8() ^ ((MAGIC_COOKIE >> ((4 - i as u32 - 1) * 8)) as u8);
+            }
+            for i in 0..12 {
+                address[i + 4] = buf.get_u8() ^ (transaction_id[i]);
+            }
+            Attribute::XorMappedAddress(Address {
+                address,
+                port,
+                ip_kind: IPKind::IPv6,
+            })
+        }
+        v => panic!(format!("Invalid ip type {}", v)),
+    }
+}
+
+fn encode_xor_mapped_address(
+    attribute: &Attribute,
+    buf: &mut dyn BufMut,
+    transaction_id: &[u8; 12],
+) -> usize {
+    match attribute {
+        Attribute::XorMappedAddress(Address {
+            address,
+            port,
+            ip_kind,
+        }) if ip_kind == &IPKind::IPv4 => {
+            buf.put_u8(0);
+            buf.put_u8(0x01);
+            buf.put_u16((*port) ^ ((MAGIC_COOKIE >> 16) as u16));
+            for i in 0..4 {
+                buf.put_u8(address[i] ^ ((MAGIC_COOKIE >> ((4 - i as u32 - 1) * 8)) as u8));
+            }
+            8
+        }
+        Attribute::XorMappedAddress(Address {
+            address,
+            port,
+            ip_kind,
+        }) if ip_kind == &IPKind::IPv6 => {
+            buf.put_u8(0);
+            buf.put_u8(0x02);
+            buf.put_u16((*port) ^ ((MAGIC_COOKIE >> 16) as u16));
+            for i in 0..4 {
+                buf.put_u8(address[i] ^ ((MAGIC_COOKIE >> ((4 - i as u32 - 1) * 8)) as u8));
+            }
+            for i in 0..12 {
+                buf.put_u8(address[i + 4] ^ (transaction_id[i]));
+            }
+            20
+        }
+        v => panic!(format!("Should never be here!, {:#?}", v)),
+    }
+}
 
 mod test {
     use bytes::{BufMut, BytesMut};
@@ -215,6 +284,51 @@ mod test {
         assert_eq!(size, 20);
         let mut bytes = buf_mut.freeze();
         let decoded_attribute = decode_mapped_address(&mut bytes, 8);
+        assert_eq!(decoded_attribute, attribute)
+    }
+
+    #[test]
+    pub fn test_encode_decode_ipv4_xor_mapped_address() {
+        use super::*;
+        let address = Address {
+            address: vec![0x01, 0x02, 0x03, 0x04],
+            port: 0x0101,
+            ip_kind: IPKind::IPv4,
+        };
+        let attribute = Attribute::XorMappedAddress(address);
+        let mut buf_mut = BytesMut::with_capacity(1024);
+        let transaction_id: [u8; 12] = [
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        ];
+
+        let size = encode_xor_mapped_address(&attribute, &mut buf_mut, &transaction_id);
+        assert_eq!(size, 8);
+        let mut bytes = buf_mut.freeze();
+        let decoded_attribute = decode_xor_mapped_address(&mut bytes, 8, &transaction_id);
+        assert_eq!(decoded_attribute, attribute)
+    }
+
+    #[test]
+    pub fn test_encode_decode_ipv6_xor_mapped_address() {
+        use super::*;
+        let ipv6_address = vec![
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+            0x07, 0x08,
+        ];
+        let address = Address {
+            address: ipv6_address,
+            port: 0x0101,
+            ip_kind: IPKind::IPv6,
+        };
+        let attribute = Attribute::XorMappedAddress(address);
+        let mut buf_mut = BytesMut::with_capacity(1024);
+        let transaction_id: [u8; 12] = [
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        ];
+        let size = encode_xor_mapped_address(&attribute, &mut buf_mut, &transaction_id);
+        assert_eq!(size, 20);
+        let mut bytes = buf_mut.freeze();
+        let decoded_attribute = decode_xor_mapped_address(&mut bytes, 8, &transaction_id);
         assert_eq!(decoded_attribute, attribute)
     }
 }

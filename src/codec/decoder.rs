@@ -49,7 +49,7 @@ impl Decoder {
         }
         let mut attributes: Vec<Attribute> = Vec::new();
         while buf.has_remaining() {
-            let attribute = decode_attribute(buf);
+            let attribute = decode_attribute(buf, &transaction_id_bytes);
             attributes.push(attribute);
         }
 
