@@ -1,16 +1,21 @@
 // defines the 4 kinds of message classes
 mod message_class;
+
 pub use message_class::MessageClass;
 
 mod message_method;
+
 pub use message_method::MessageMethod;
 
 mod transaction_id;
+
 pub use transaction_id::TransactionID;
 
 mod attributes;
+
 pub use attributes::*;
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct Message {
     // 2 bit
     pub message_class: MessageClass,

@@ -16,6 +16,15 @@ impl MessageClass {
             _ => panic!("should never be here!"),
         }
     }
+
+    pub fn value(&self) -> u8 {
+        match self {
+            MessageClass::Request => 0b00,
+            MessageClass::Indication => 0b01,
+            MessageClass::SuccessResponse => 0b10,
+            MessageClass::FailureResponse => 0b1,
+        }
+    }
 }
 
 mod test {

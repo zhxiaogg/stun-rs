@@ -1,7 +1,6 @@
 use std::error::Error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
-use std::intrinsics::write_bytes;
 use std::string::FromUtf8Error;
 
 #[derive(Debug)]

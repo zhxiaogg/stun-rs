@@ -108,7 +108,7 @@ pub fn decode_attribute(buf: &mut dyn Buf, transaction_id: &[u8; 12]) -> Result<
 
         // Comprehension-optional range (0x8000-0xFFFF)
         0x8022 => {
-            let mut bytes = Vec::with_capacity(attribute_value_size as usize);
+            let mut bytes = vec![0u8; attribute_value_size];
             buf.copy_to_slice(bytes.as_mut());
             Ok(Attribute::Software(String::from_utf8(bytes)?))
         }
@@ -132,6 +132,51 @@ pub fn decode_attribute(buf: &mut dyn Buf, transaction_id: &[u8; 12]) -> Result<
                 kind: attribute_type,
             })
         }
+    }
+}
+
+pub fn encode_attribute(
+    attribute: &Attribute,
+    buf: &mut dyn BufMut,
+    transaction_id: &[u8; 12],
+) -> usize {
+    match attribute {
+        Attribute::XorMappedAddress(address) => {
+            buf.put_u16(0x0020);
+            let value_size = if address.ip_kind == IPKind::IPv4 {
+                8
+            } else {
+                20
+            };
+            buf.put_u16(value_size);
+            encode_xor_mapped_address(attribute, buf, transaction_id);
+            4 + value_size as usize
+        }
+        Attribute::Software(software) => {
+            let bytes = software.as_bytes();
+            buf.put_u16(0x8022);
+            buf.put_u16(bytes.len() as u16);
+            buf.put_slice(bytes);
+            let padding = 4 - bytes.len() % 4;
+            if padding != 4 {
+                for _ in 0..padding {
+                    buf.put_u8(0x00)
+                }
+            }
+            4 + bytes.len() + padding
+        }
+        Attribute::MappedAddress(address) => {
+            buf.put_u16(0x0001);
+            let value_size = if address.ip_kind == IPKind::IPv4 {
+                8
+            } else {
+                20
+            };
+            buf.put_u16(value_size);
+            encode_mapped_address(attribute, buf);
+            4 + value_size as usize
+        }
+        _ => panic!("encoding not supported!"),
     }
 }
 
@@ -284,7 +329,10 @@ fn encode_xor_mapped_address(
 }
 
 mod test {
-    use bytes::BytesMut;
+    use bytes::{Buf, BytesMut};
+
+    use crate::codec::attributes::{decode_attribute, encode_attribute};
+    use crate::messages::Attribute;
 
     #[test]
     pub fn test_encode_decode_ipv4_mapped_address() {
@@ -367,5 +415,17 @@ mod test {
         let mut bytes = buf_mut.freeze();
         let decoded_attribute = decode_xor_mapped_address(&mut bytes, 8, &transaction_id).unwrap();
         assert_eq!(decoded_attribute, attribute)
+    }
+
+    #[test]
+    pub fn test_encode_decode_software() {
+        let attribute = Attribute::Software("test:0.1.0".to_owned());
+        let transaction_id = [0u8; 12];
+        let mut bytes_mut = BytesMut::new();
+        let size = encode_attribute(&attribute, &mut bytes_mut, &transaction_id);
+        assert_eq!(16, size);
+        let mut buf = bytes_mut.bytes();
+        let decode_attribute = decode_attribute(&mut buf, &transaction_id).unwrap();
+        assert_eq!(attribute, decode_attribute);
     }
 }

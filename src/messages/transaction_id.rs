@@ -1,11 +1,11 @@
 #[derive(PartialEq, Eq, Debug)]
 pub struct TransactionID {
-    value: [u8; 12],
+    pub value: [u8; 12],
 }
 
 impl TransactionID {
     pub fn from(value: [u8; 12]) -> TransactionID {
-        TransactionID { value: value }
+        TransactionID { value }
     }
 }
 

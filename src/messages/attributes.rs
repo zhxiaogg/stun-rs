@@ -38,6 +38,24 @@ pub struct Address {
     pub ip_kind: IPKind,
 }
 
+impl Address {
+    pub fn ipv4(address: [u8; 4], port: u16) -> Address {
+        Address {
+            address: address.to_vec(),
+            port,
+            ip_kind: IPKind::IPv4,
+        }
+    }
+
+    pub fn ipv6(address: [u8; 16], port: u16) -> Address {
+        Address {
+            address: address.to_vec(),
+            port,
+            ip_kind: IPKind::IPv6,
+        }
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum IPKind {
     IPv4,

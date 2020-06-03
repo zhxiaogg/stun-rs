@@ -43,10 +43,9 @@ impl Decoder {
         let message_method_code =
             ((header & 0x3E00) >> 2) | ((header & 0x00E0) >> 1) | (header & 0x000F);
         let message_method = MessageMethod::from(message_method_code);
+
         let mut transaction_id_bytes: [u8; 12] = [0; 12];
-        for i in 0..12 {
-            transaction_id_bytes[i] = buf.get_u8();
-        }
+        buf.copy_to_slice(&mut transaction_id_bytes);
         let transaction_id = TransactionID::from(transaction_id_bytes);
 
         // verify and decode body
@@ -70,5 +69,29 @@ impl Decoder {
             attributes: attributes,
         };
         Result::Ok(msg)
+    }
+}
+
+mod test {
+    use crate::codec::{Decoder, Encoder};
+    use crate::messages::*;
+    use bytes::{Buf, BytesMut};
+
+    #[test]
+    pub fn test_encode_decode_message() {
+        let transaction_id_codes = [1u8; 12];
+        let message = Message {
+            message_class: MessageClass::Request,
+            message_method: MessageMethod::Binding,
+            transaction_id: TransactionID::from(transaction_id_codes),
+            attributes: vec![Attribute::XorMappedAddress(Address::ipv4([1u8; 4], 8080))],
+        };
+        let mut bytes_mut = BytesMut::with_capacity(0);
+        let size = Encoder::new().encode(&message, &mut bytes_mut);
+        assert_eq!(size, 20 + 12);
+
+        let mut bytes = bytes_mut.bytes();
+        let decoded_message = Decoder::new().decode(&mut bytes).unwrap();
+        assert_eq!(decoded_message, message)
     }
 }

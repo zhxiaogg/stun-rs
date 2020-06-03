@@ -15,6 +15,12 @@ impl MessageMethod {
             v => MessageMethod::Custom(v),
         }
     }
+    pub fn value(&self) -> u16 {
+        match self {
+            MessageMethod::Binding => 0x0001,
+            MessageMethod::Custom(v) => *v,
+        }
+    }
 }
 
 mod test {
