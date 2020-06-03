@@ -1,9 +1,12 @@
 use bytes::{Buf, BufMut};
 
+use crate::codec::error::CodecError;
 use crate::codec::MAGIC_COOKIE;
 use crate::messages::{Address, Attribute, IPKind};
 
-pub fn decode_attribute(buf: &mut dyn Buf, transaction_id: &[u8; 12]) -> Attribute {
+use super::Result;
+
+pub fn decode_attribute(buf: &mut dyn Buf, transaction_id: &[u8; 12]) -> Result<Attribute> {
     let attribute_type = buf.get_u16();
     let attribute_value_size = buf.get_u16() as usize;
 
@@ -12,69 +15,93 @@ pub fn decode_attribute(buf: &mut dyn Buf, transaction_id: &[u8; 12]) -> Attribu
         // Reserved
         0x0000 => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
+            Ok(Attribute::UnRecognized { kind: 0x0000 })
         }
         // MAPPED-ADDRESS
         0x0001 => decode_mapped_address(buf, attribute_value_size),
         // (Reserved; was RESPONSE-ADDRESS)
         0x0002 => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
+            Ok(Attribute::UnRecognized {
+                kind: attribute_type,
+            })
         }
         // (Reserved; was CHANGE-ADDRESS)
         0x0003 => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
+            Ok(Attribute::UnRecognized {
+                kind: attribute_type,
+            })
         }
         //(Reserved; was SOURCE-ADDRESS)
         0x0004 => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
+            Ok(Attribute::UnRecognized {
+                kind: attribute_type,
+            })
         }
         // (Reserved; was CHANGED-ADDRESS)
         0x0005 => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
+            Ok(Attribute::UnRecognized {
+                kind: attribute_type,
+            })
         }
         // USERNAME
         0x0006 => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
+            Ok(Attribute::UnRecognized {
+                kind: attribute_type,
+            })
         }
         // (Reserved; was PASSWORD)
         0x0007 => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
+            Ok(Attribute::UnRecognized {
+                kind: attribute_type,
+            })
         }
         // MESSAGE-INTEGRITY
         0x0008 => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
+            Ok(Attribute::UnRecognized {
+                kind: attribute_type,
+            })
         }
         // ERROR-CODE
         0x0009 => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
+            Ok(Attribute::UnRecognized {
+                kind: attribute_type,
+            })
         }
         // UNKNOWN-ATTRIBUTES
         0x000A => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
+            Ok(Attribute::UnRecognized {
+                kind: attribute_type,
+            })
         }
         // (Reserved; was REFLECTED-FROM)
         0x000B => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
+            Ok(Attribute::UnRecognized {
+                kind: attribute_type,
+            })
         }
         // REALM
         0x0014 => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
+            Ok(Attribute::UnRecognized {
+                kind: attribute_type,
+            })
         }
         // NONCE
         0x0015 => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
+            Ok(Attribute::UnRecognized {
+                kind: attribute_type,
+            })
         }
         // XOR-MAPPED-ADDRESS
         0x0020 => decode_xor_mapped_address(buf, attribute_value_size, transaction_id),
@@ -83,28 +110,37 @@ pub fn decode_attribute(buf: &mut dyn Buf, transaction_id: &[u8; 12]) -> Attribu
         0x8022 => {
             let mut bytes = Vec::with_capacity(attribute_value_size as usize);
             buf.copy_to_slice(bytes.as_mut());
-            Attribute::Software(String::from_utf8(bytes).unwrap())
+            Ok(Attribute::Software(String::from_utf8(bytes)?))
         }
         //ALTERNATE-SERVER
         0x8023 => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
+            Ok(Attribute::UnRecognized {
+                kind: attribute_type,
+            })
         }
         //FINGERPRINT
         0x8028 => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: 0x0000 }
+            Ok(Attribute::UnRecognized {
+                kind: attribute_type,
+            })
         }
-        kind => {
+        _ => {
             buf.advance(attribute_value_size);
-            Attribute::UnRecognized { kind: kind }
+            Ok(Attribute::UnRecognized {
+                kind: attribute_type,
+            })
         }
     }
 }
 
-fn decode_mapped_address(buf: &mut dyn Buf, _size: usize) -> Attribute {
+fn decode_mapped_address(buf: &mut dyn Buf, size: usize) -> Result<Attribute> {
+    if buf.remaining() < size {
+        return Err(CodecError::insufficient_bytes(size, buf.remaining()));
+    }
     if buf.get_u8() != 0x00 {
-        panic!("Invalid MappedAddress Codec!");
+        return Err(CodecError::unexpected("Invalid MappedAddress Codec!"));
     }
     // TODO: validate size
     match buf.get_u8() {
@@ -112,33 +148,33 @@ fn decode_mapped_address(buf: &mut dyn Buf, _size: usize) -> Attribute {
             let port = buf.get_u16();
             let mut address = vec![0; 4];
             buf.copy_to_slice(address.as_mut());
-            Attribute::MappedAddress(Address {
+            Ok(Attribute::MappedAddress(Address {
                 address,
                 port,
                 ip_kind: IPKind::IPv4,
-            })
+            }))
         }
         0x02 => {
             let port = buf.get_u16();
             let mut address = vec![0; 16];
             buf.copy_to_slice(address.as_mut());
-            Attribute::MappedAddress(Address {
+            Ok(Attribute::MappedAddress(Address {
                 address,
                 port,
                 ip_kind: IPKind::IPv6,
-            })
+            }))
         }
-        v => panic!(format!("Invalid ip type {}", v)),
+        v => Err(CodecError::unexpected(&format!("Invalid ip type {}", v))),
     }
 }
 
 fn encode_mapped_address(v: &Attribute, buf: &mut dyn BufMut) -> usize {
     match v {
         Attribute::MappedAddress(Address {
-                                     address,
-                                     port,
-                                     ip_kind,
-                                 }) if ip_kind == &IPKind::IPv4 => {
+            address,
+            port,
+            ip_kind,
+        }) if ip_kind == &IPKind::IPv4 => {
             buf.put_u8(0);
             buf.put_u8(0x01);
             buf.put_u16(*port);
@@ -148,10 +184,10 @@ fn encode_mapped_address(v: &Attribute, buf: &mut dyn BufMut) -> usize {
             8
         }
         Attribute::MappedAddress(Address {
-                                     address,
-                                     port,
-                                     ip_kind,
-                                 }) if ip_kind == &IPKind::IPv6 => {
+            address,
+            port,
+            ip_kind,
+        }) if ip_kind == &IPKind::IPv6 => {
             buf.put_u8(0);
             buf.put_u8(0x02);
             buf.put_u16(*port);
@@ -166,11 +202,14 @@ fn encode_mapped_address(v: &Attribute, buf: &mut dyn BufMut) -> usize {
 
 fn decode_xor_mapped_address(
     buf: &mut dyn Buf,
-    _size: usize,
+    size: usize,
     transaction_id: &[u8; 12],
-) -> Attribute {
+) -> Result<Attribute> {
+    if buf.remaining() < size {
+        return Err(CodecError::insufficient_bytes(size, buf.remaining()));
+    }
     if buf.get_u8() != 0x00 {
-        panic!("Invalid MappedAddress Codec!");
+        return Err(CodecError::unexpected("Invalid XorMappedAddress Codec!"));
     }
     // TODO: validate size
     match buf.get_u8() {
@@ -180,11 +219,11 @@ fn decode_xor_mapped_address(
             for i in 0..4 {
                 address[i] = buf.get_u8() ^ ((MAGIC_COOKIE >> ((4 - i as u32 - 1) * 8)) as u8);
             }
-            Attribute::XorMappedAddress(Address {
+            Ok(Attribute::XorMappedAddress(Address {
                 address,
                 port,
                 ip_kind: IPKind::IPv4,
-            })
+            }))
         }
         0x02 => {
             let port = buf.get_u16() ^ ((MAGIC_COOKIE >> 16) as u16);
@@ -195,13 +234,13 @@ fn decode_xor_mapped_address(
             for i in 0..12 {
                 address[i + 4] = buf.get_u8() ^ (transaction_id[i]);
             }
-            Attribute::XorMappedAddress(Address {
+            Ok(Attribute::XorMappedAddress(Address {
                 address,
                 port,
                 ip_kind: IPKind::IPv6,
-            })
+            }))
         }
-        v => panic!(format!("Invalid ip type {}", v)),
+        v => Err(CodecError::unexpected(&format!("Invalid ip type {}", v))),
     }
 }
 
@@ -212,10 +251,10 @@ fn encode_xor_mapped_address(
 ) -> usize {
     match attribute {
         Attribute::XorMappedAddress(Address {
-                                        address,
-                                        port,
-                                        ip_kind,
-                                    }) if ip_kind == &IPKind::IPv4 => {
+            address,
+            port,
+            ip_kind,
+        }) if ip_kind == &IPKind::IPv4 => {
             buf.put_u8(0);
             buf.put_u8(0x01);
             buf.put_u16((*port) ^ ((MAGIC_COOKIE >> 16) as u16));
@@ -225,10 +264,10 @@ fn encode_xor_mapped_address(
             8
         }
         Attribute::XorMappedAddress(Address {
-                                        address,
-                                        port,
-                                        ip_kind,
-                                    }) if ip_kind == &IPKind::IPv6 => {
+            address,
+            port,
+            ip_kind,
+        }) if ip_kind == &IPKind::IPv6 => {
             buf.put_u8(0);
             buf.put_u8(0x02);
             buf.put_u16((*port) ^ ((MAGIC_COOKIE >> 16) as u16));
@@ -260,7 +299,7 @@ mod test {
         let size = encode_mapped_address(&attribute, &mut buf_mut);
         assert_eq!(size, 8);
         let mut bytes = buf_mut.freeze();
-        let decoded_attribute = decode_mapped_address(&mut bytes, 8);
+        let decoded_attribute = decode_mapped_address(&mut bytes, 8).unwrap();
         assert_eq!(decoded_attribute, attribute)
     }
 
@@ -281,7 +320,7 @@ mod test {
         let size = encode_mapped_address(&attribute, &mut buf_mut);
         assert_eq!(size, 20);
         let mut bytes = buf_mut.freeze();
-        let decoded_attribute = decode_mapped_address(&mut bytes, 8);
+        let decoded_attribute = decode_mapped_address(&mut bytes, 8).unwrap();
         assert_eq!(decoded_attribute, attribute)
     }
 
@@ -302,7 +341,7 @@ mod test {
         let size = encode_xor_mapped_address(&attribute, &mut buf_mut, &transaction_id);
         assert_eq!(size, 8);
         let mut bytes = buf_mut.freeze();
-        let decoded_attribute = decode_xor_mapped_address(&mut bytes, 8, &transaction_id);
+        let decoded_attribute = decode_xor_mapped_address(&mut bytes, 8, &transaction_id).unwrap();
         assert_eq!(decoded_attribute, attribute)
     }
 
@@ -326,7 +365,7 @@ mod test {
         let size = encode_xor_mapped_address(&attribute, &mut buf_mut, &transaction_id);
         assert_eq!(size, 20);
         let mut bytes = buf_mut.freeze();
-        let decoded_attribute = decode_xor_mapped_address(&mut bytes, 8, &transaction_id);
+        let decoded_attribute = decode_xor_mapped_address(&mut bytes, 8, &transaction_id).unwrap();
         assert_eq!(decoded_attribute, attribute)
     }
 }
