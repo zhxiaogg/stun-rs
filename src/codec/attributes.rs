@@ -110,6 +110,10 @@ pub fn decode_attribute(buf: &mut dyn Buf, transaction_id: &[u8; 12]) -> Result<
         0x8022 => {
             let mut bytes = vec![0u8; attribute_value_size];
             buf.copy_to_slice(bytes.as_mut());
+            let padding = 4 - attribute_value_size % 4;
+            if (padding != 4) {
+                buf.advance(padding);
+            }
             Ok(Attribute::Software(String::from_utf8(bytes)?))
         }
         //ALTERNATE-SERVER
@@ -162,8 +166,10 @@ pub fn encode_attribute(
                 for _ in 0..padding {
                     buf.put_u8(0x00)
                 }
+                4 + bytes.len() + padding
+            } else {
+                4 + bytes.len()
             }
-            4 + bytes.len() + padding
         }
         Attribute::MappedAddress(address) => {
             buf.put_u16(0x0001);
@@ -182,7 +188,11 @@ pub fn encode_attribute(
 
 fn decode_mapped_address(buf: &mut dyn Buf, size: usize) -> Result<Attribute> {
     if buf.remaining() < size {
-        return Err(CodecError::insufficient_bytes(size, buf.remaining()));
+        return Err(CodecError::insufficient_bytes(
+            "decode mapped address",
+            size,
+            buf.remaining(),
+        ));
     }
     if buf.get_u8() != 0x00 {
         return Err(CodecError::unexpected("Invalid MappedAddress Codec!"));
@@ -251,7 +261,11 @@ fn decode_xor_mapped_address(
     transaction_id: &[u8; 12],
 ) -> Result<Attribute> {
     if buf.remaining() < size {
-        return Err(CodecError::insufficient_bytes(size, buf.remaining()));
+        return Err(CodecError::insufficient_bytes(
+            "decode XorMappedAddress",
+            size,
+            buf.remaining(),
+        ));
     }
     if buf.get_u8() != 0x00 {
         return Err(CodecError::unexpected("Invalid XorMappedAddress Codec!"));

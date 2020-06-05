@@ -4,8 +4,6 @@ use crate::codec::attributes::encode_attribute;
 use crate::codec::MAGIC_COOKIE;
 use crate::messages::*;
 
-use super::attributes::decode_attribute;
-
 pub struct Encoder {}
 
 impl Encoder {
@@ -22,7 +20,7 @@ impl Encoder {
         header = header | (((message.message_class.value() as u16) & 0b01) << 4);
 
         // encode message method
-        let message_method_code = (message.message_method.value() & 0xFFF);
+        let message_method_code = message.message_method.value() & 0xFFF;
         header = header
             | (message_method_code & 0x000F)
             | ((message_method_code & 0x0070) << 1)

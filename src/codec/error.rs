@@ -5,28 +5,45 @@ use std::string::FromUtf8Error;
 
 #[derive(Debug)]
 pub enum CodecError {
-    InsufficientBytes { required: usize, actual: usize },
+    InsufficientBytes {
+        when: String,
+        required: usize,
+        actual: usize,
+    },
     UnExpected(String),
 }
 
 impl Display for CodecError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            CodecError::InsufficientBytes { required, actual } => write!(
+            CodecError::InsufficientBytes {
+                when,
+                required,
+                actual,
+            } => write!(
                 f,
-                "insufficient bytes, required {}, actual: {}",
-                required, actual
+                "insufficient bytes when {}, required {}, actual: {}",
+                when, required, actual
             ),
             CodecError::UnExpected(msg) => write!(f, "{}", msg),
         }
     }
 }
 
-impl Error for CodecError {}
+impl Error for CodecError {
+    // need #![feature(backtrace)] declared at the root crate
+    // fn backtrace(&self) -> Option<&Backtrace> {
+    //     Some(&Backtrace::capture())
+    // }
+}
 
 impl CodecError {
-    pub fn insufficient_bytes(required: usize, actual: usize) -> CodecError {
-        CodecError::InsufficientBytes { required, actual }
+    pub fn insufficient_bytes(when: &str, required: usize, actual: usize) -> CodecError {
+        CodecError::InsufficientBytes {
+            when: when.to_owned(),
+            required,
+            actual,
+        }
     }
 
     pub fn unexpected(msg: &str) -> CodecError {
