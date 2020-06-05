@@ -61,8 +61,8 @@ impl Decoder {
             ));
         }
         let mut attributes: Vec<Attribute> = Vec::new();
-        let remain = buf.remaining() - message_length;
-        while buf.remaining() > remain {
+        let reserved = buf.remaining() - message_length;
+        while buf.remaining() > reserved {
             let attribute = decode_attribute(buf, &transaction_id_bytes)?;
             attributes.push(attribute);
         }
