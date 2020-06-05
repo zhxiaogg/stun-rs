@@ -53,7 +53,7 @@ impl Decoder {
         let transaction_id = TransactionID::from(transaction_id_bytes);
 
         // verify and decode body
-        if buf.remaining() != message_length {
+        if buf.remaining() < message_length {
             return Err(CodecError::insufficient_bytes(
                 "decode body",
                 message_length,
@@ -61,7 +61,8 @@ impl Decoder {
             ));
         }
         let mut attributes: Vec<Attribute> = Vec::new();
-        while buf.has_remaining() {
+        let remain = buf.remaining() - message_length;
+        while buf.remaining() > remain {
             let attribute = decode_attribute(buf, &transaction_id_bytes)?;
             attributes.push(attribute);
         }
@@ -78,9 +79,10 @@ impl Decoder {
 }
 
 mod test {
+    use bytes::{Buf, BytesMut};
+
     use crate::codec::{Decoder, Encoder};
     use crate::messages::*;
-    use bytes::{Buf, BytesMut};
 
     #[test]
     pub fn test_encode_decode_message() {
